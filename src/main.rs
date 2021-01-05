@@ -47,6 +47,7 @@ enum Block {
     WhiteBalance(Vec<u16>),
     WhiteBalanceRGBGains(Vec<[f32; 3]>),
     ISO(Vec<u16>),
+    ImageUniformity(Vec<f32>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -383,6 +384,32 @@ fn parse_isoe(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::ISO(measurements)))
 }
 
+fn parse_unif(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"f")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 4);
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, shutter_speed) = be_f32(input)?;
+        measurements.push(shutter_speed);
+        input = iinput; // TODO: tidy up
+    }
+
+    // Take remaining padding bytes
+    let data_length = 6 * measurements.len();
+    let input = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?.0
+    } else {
+        input
+    };
+
+    Ok((input, Block::ImageUniformity(measurements)))
+}
+
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
@@ -403,6 +430,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"WBAL" => parse_wbal(input),
         b"WRGB" => parse_wrgb(input),
         b"ISOE" => parse_isoe(input),
+        b"UNIF" => parse_unif(input),
         block_type => {
             println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type).unwrap());
             Err(nom::Err::Failure(nom::error::Error::new(input, ErrorKind::Tag)))
