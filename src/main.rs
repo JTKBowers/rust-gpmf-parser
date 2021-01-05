@@ -168,9 +168,16 @@ fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, size) = be_u8(input)?;
     let (input, count) = be_u16(input)?;
 
-    let string_length = ((size - 1) as usize)*(count as usize); // SI units seem to have an out-of-range byte at the end. Maybe means ^-2?
+    let string_length = (size as usize)*(count as usize);
     let (input, si_units) = take(string_length)(input)?;
-    let si_units = std::str::from_utf8(si_units).unwrap();
+
+    let mut si_units = si_units.to_vec();
+    for i in 0..si_units.len() {
+        if si_units[i] == 0xb2 { // Seems to represent ^-2
+            si_units[i] = b"2"[0];
+        }
+    }
+    let si_units = std::str::from_utf8(&si_units).unwrap();
 
     // Take remaining padding bytes
     let (input, _padding) = if string_length % 4 != 0 {
