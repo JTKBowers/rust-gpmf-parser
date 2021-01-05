@@ -49,7 +49,7 @@ enum Block {
     ISO(Vec<u16>),
     ImageUniformity(Vec<f32>),
     Type(String),
-    Custom(Vec<u8>),
+    Custom(String, Vec<u8>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -432,7 +432,9 @@ fn parse_type(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::Type(stream_name.to_string())))
 }
 
-fn parse_custom(input: &[u8]) -> IResult<&[u8], Block> {
+fn parse_custom<'a>(type_name: &'a[u8], input: &'a[u8]) -> IResult<&'a[u8], Block> {
+    let type_name = std::str::from_utf8(type_name).unwrap();
+
     let (input, _data_type) = tag(b"?")(input)?;
     let (input, size) = be_u8(input)?;
     let (input, count) = be_u16(input)?;
@@ -446,7 +448,7 @@ fn parse_custom(input: &[u8]) -> IResult<&[u8], Block> {
         input
     };
 
-    Ok((input, Block::Custom(data_bytes.to_vec())))
+    Ok((input, Block::Custom(type_name.to_string(), data_bytes.to_vec())))
 }
 
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
@@ -472,7 +474,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"UNIF" => parse_unif(input),
         b"TYPE" => parse_type(input),
         block_type => {
-            let r = parse_custom(input);
+            let r = parse_custom(block_type, input);
             if r.is_err() {
                 println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type).unwrap());
                 Err(nom::Err::Failure(nom::error::Error::new(input, ErrorKind::Tag)))
