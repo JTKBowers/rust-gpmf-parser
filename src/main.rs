@@ -28,6 +28,7 @@ impl From<std::io::Error> for ParseError {
     }
 }
 
+#[derive(Debug)]
 enum Block {
     DEVC([u8; 3]),
     DVID([u8; 4]),
@@ -211,12 +212,20 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, block))
 }
 
-fn parser(input: &[u8]) -> IResult<&[u8], ()> {
+fn parser(input: &[u8]) -> IResult<&[u8], Vec<Block>> {
+    let mut blocks = Vec::new();
     let mut input = input;
     loop {
         let result = parse_block(input)?;
         input = result.0;
+        println!("{:?}", result.1);
+        blocks.push(result.1);
+
+        if input == b"" {
+            break
+        }
     }
+    Ok((input, blocks))
 }
 
 // TODO: streaming
@@ -244,16 +253,16 @@ fn parser(input: &[u8]) -> IResult<&[u8], ()> {
 //     // Ok(vec![])
 // }
 
-fn parse_metadata<T: Read>(mut f: T) -> Result<Vec<u8>, ParseError> {
+fn parse_metadata<T: Read>(mut f: T) -> Result<Vec<Block>, ParseError> {
     let mut buffer = [0u8; 1024];
     let bytes_read = f.read(&mut buffer)?;
     // let mut buffer = Vec::new();
     // let bytes_read = f.read_to_end(&mut buffer)?;
 
     let input = &buffer[..bytes_read];
-    let (input, result) = parser(input)?;
+    let (_, result) = parser(input)?;
 
-    Ok(vec![])
+    Ok(result)
 }
 
 fn main() -> io::Result<()> {
