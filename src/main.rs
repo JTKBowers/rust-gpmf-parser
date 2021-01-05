@@ -35,10 +35,10 @@ enum Block {
     DeviceName(String),
     Stream,
     StartTimestamp,
-    TotalSamples,
+    TotalSamples(u32),
     StreamName(String),
-    InputOrientation,
-    UnitsSI
+    InputOrientation(String),
+    UnitsSI(String)
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -122,7 +122,7 @@ fn parse_tsmp(input: &[u8]) -> IResult<&[u8], Block> {
 
     let (input, total_samples) = be_u32(input)?;
 
-    Ok((input, Block::TotalSamples))
+    Ok((input, Block::TotalSamples(total_samples)))
 }
 
 
@@ -152,8 +152,8 @@ fn parse_orin(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, count) = be_u16(input)?;
 
     let string_length = (size as usize)*(count as usize);
-    let (input, orin) = take(string_length)(input)?;
-    let orin = std::str::from_utf8(orin).unwrap();
+    let (input, orientation) = take(string_length)(input)?;
+    let orientation = std::str::from_utf8(orientation).unwrap();
 
     // Take remaining padding bytes
     let (input, _padding) = if string_length % 4 != 0 {
@@ -163,7 +163,7 @@ fn parse_orin(input: &[u8]) -> IResult<&[u8], Block> {
         (input, &[][..])
     };
 
-    Ok((input, Block::InputOrientation))
+    Ok((input, Block::InputOrientation(orientation.to_string())))
 }
 
 fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
@@ -183,7 +183,7 @@ fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
         (input, &[][..])
     };
 
-    Ok((input, Block::UnitsSI))
+    Ok((input, Block::UnitsSI(si_units.to_string())))
 }
 
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
