@@ -50,6 +50,9 @@ enum Block {
     ImageUniformity(Vec<f32>),
     Type(String),
     Custom(String, Vec<u8>),
+    GPSF(u32),
+    GPSTimestamp(String),
+    GPSP(u16), // precision?
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -451,6 +454,52 @@ fn parse_custom<'a>(type_name: &'a[u8], input: &'a[u8]) -> IResult<&'a[u8], Bloc
     Ok((input, Block::Custom(type_name.to_string(), data_bytes.to_vec())))
 }
 
+fn parse_gpsf(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"L")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 4);
+    let (input, count) = be_u16(input)?;
+    assert_eq!(count, 1);
+
+    let (input, gpsf) = be_u32(input)?;
+
+    Ok((input, Block::GPSF(gpsf)))
+}
+
+fn parse_gpsu(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"U")(input)?;
+    let (input, size) = be_u8(input)?;
+    let (input, count) = be_u16(input)?;
+    assert_eq!(count, 1);
+
+    let string_length = (size as usize)*(count as usize);
+    let (input, gps_timestamp) = take(string_length)(input)?;
+    let gps_timestamp = std::str::from_utf8(gps_timestamp).unwrap();
+
+    // Take remaining padding bytes
+    let (input, _padding) = if string_length % 4 != 0 {
+        let count_remaining_bytes = 4 - string_length % 4;
+        take(count_remaining_bytes)(input)?
+    } else {
+        (input, &[][..])
+    };
+
+    Ok((input, Block::GPSTimestamp(gps_timestamp.to_string())))
+}
+
+fn parse_gpsp(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"S")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 2);
+    let (input, count) = be_u16(input)?;
+    assert_eq!(count, 1);
+
+    let (input, unknown) = be_u16(input)?;
+    let (input, _) = tag(&[0,0])(input)?;
+
+    Ok((input, Block::GPSP(unknown)))
+}
+
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
@@ -473,6 +522,9 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"ISOE" => parse_isoe(input),
         b"UNIF" => parse_unif(input),
         b"TYPE" => parse_type(input),
+        b"GPSF" => parse_gpsf(input),
+        b"GPSU" => parse_gpsu(input),
+        b"GPSP" => parse_gpsp(input),
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
