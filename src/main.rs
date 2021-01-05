@@ -6,7 +6,7 @@ use std::fs::File;
 
 use nom::error::ErrorKind;
 use nom::bytes::streaming::{tag, take};
-use nom::number::streaming::{be_u8, be_u16, be_u32, be_i16, be_f32};
+use nom::number::streaming::{be_u8, be_u16, be_u32, be_u64, be_i16, be_f32};
 use nom::IResult;
 
 #[derive(Debug)]
@@ -34,7 +34,7 @@ enum Block {
     DeviceID([u8; 4]),
     DeviceName(String),
     Stream,
-    StartTimestamp,
+    StartTimestamp(u64),
     TotalSamples(u32),
     StreamName(String),
     InputOrientation(String),
@@ -99,20 +99,13 @@ fn parse_strm(input: &[u8]) -> IResult<&[u8], Block> {
 fn parse_stmp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"J")(input)?;
     let (input, size) = be_u8(input)?;
+    assert_eq!(size, 8);
     let (input, count) = be_u16(input)?;
+    assert_eq!(count, 1);
 
-    let length = (size as usize)*(count as usize);
-    let (input, _unknown) = take(length)(input)?;
+    let (input, start_timestamp) = be_u64(input)?;
 
-    // Take remaining padding bytes
-    let (input, _padding) = if length % 4 != 0 {
-        let count_remaining_bytes = 4 - length % 4;
-        take(count_remaining_bytes)(input)?
-    } else {
-        (input, &[][..])
-    };
-
-    Ok((input, Block::StartTimestamp))
+    Ok((input, Block::StartTimestamp(start_timestamp)))
 }
 
 
