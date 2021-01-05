@@ -30,10 +30,10 @@ impl From<std::io::Error> for ParseError {
 
 #[derive(Debug)]
 enum Block {
-    DeviceSource([u8; 3]),
+    DeviceSource([u8; 4]),
     DeviceID([u8; 4]),
     DeviceName(String),
-    Stream,
+    Stream([u8; 4]),
     StartTimestamp(u64),
     TotalSamples(u32),
     StreamName(String),
@@ -45,10 +45,9 @@ enum Block {
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
-    let (input, _data_type) = tag(&[0])(input)?;
-    let (input, device_source) = take(3usize)(input)?;
+    let (input, device_source) = take(4usize)(input)?;
 
-    let mut device_source_array = [0u8; 3];
+    let mut device_source_array = [0u8; 4];
     device_source_array.copy_from_slice(device_source);
 
     Ok((input, Block::DeviceSource(device_source_array)))
@@ -90,10 +89,12 @@ fn parse_dvnm(input: &[u8]) -> IResult<&[u8], Block> {
 }
 
 fn parse_strm(input: &[u8]) -> IResult<&[u8], Block> {
-    let (input, _data_type) = tag(&[0])(input)?;
-    let (input, _) = take(3usize)(input)?; // Stream ID?
+    let (input, stream_id_slice) = take(4usize)(input)?;
 
-    Ok((input, Block::Stream))
+    let mut stream_id = [0u8; 4];
+    stream_id.copy_from_slice(stream_id_slice);
+
+    Ok((input, Block::Stream(stream_id)))
 }
 
 fn parse_stmp(input: &[u8]) -> IResult<&[u8], Block> {
