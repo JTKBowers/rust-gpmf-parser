@@ -30,15 +30,15 @@ impl From<std::io::Error> for ParseError {
 
 #[derive(Debug)]
 enum Block {
-    DEVC([u8; 3]),
-    DVID([u8; 4]),
-    DVNM(String),
-    STRM,
-    STMP,
-    TSMP,
-    STNM(String),
-    ORIN,
-    SIUN
+    DeviceSource([u8; 3]),
+    DeviceID([u8; 4]),
+    DeviceName(String),
+    Stream,
+    StartTimestamp,
+    TotalSamples,
+    StreamName(String),
+    InputOrientation,
+    UnitsSI
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -48,7 +48,7 @@ fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
     let mut device_source_array = [0u8; 3];
     device_source_array.copy_from_slice(device_source);
 
-    Ok((input, Block::DEVC(device_source_array)))
+    Ok((input, Block::DeviceSource(device_source_array)))
 }
 
 fn parse_dvid(input: &[u8]) -> IResult<&[u8], Block> {
@@ -63,7 +63,7 @@ fn parse_dvid(input: &[u8]) -> IResult<&[u8], Block> {
     let mut device_id_array = [0u8; 4];
     device_id_array.copy_from_slice(device_id);
 
-    Ok((input, Block::DVID(device_id_array)))
+    Ok((input, Block::DeviceID(device_id_array)))
 }
 
 fn parse_dvnm(input: &[u8]) -> IResult<&[u8], Block> {
@@ -84,14 +84,14 @@ fn parse_dvnm(input: &[u8]) -> IResult<&[u8], Block> {
         (input, &[][..])
     };
 
-    Ok((input, Block::DVNM(device_name.to_string())))
+    Ok((input, Block::DeviceName(device_name.to_string())))
 }
 
 fn parse_strm(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(&[0])(input)?;
     let (input, _) = take(3usize)(input)?; // Stream ID?
 
-    Ok((input, Block::STRM))
+    Ok((input, Block::Stream))
 }
 
 fn parse_stmp(input: &[u8]) -> IResult<&[u8], Block> {
@@ -110,7 +110,7 @@ fn parse_stmp(input: &[u8]) -> IResult<&[u8], Block> {
         (input, &[][..])
     };
 
-    Ok((input, Block::STMP))
+    Ok((input, Block::StartTimestamp))
 }
 
 
@@ -124,7 +124,7 @@ fn parse_tsmp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, total_samples) = be_u32(input)?;
     println!("Total samples: {}", total_samples);
 
-    Ok((input, Block::TSMP))
+    Ok((input, Block::TotalSamples))
 }
 
 
@@ -146,7 +146,7 @@ fn parse_stnm(input: &[u8]) -> IResult<&[u8], Block> {
         (input, &[][..])
     };
 
-    Ok((input, Block::STNM(stream_name.to_string())))
+    Ok((input, Block::StreamName(stream_name.to_string())))
 }
 
 fn parse_orin(input: &[u8]) -> IResult<&[u8], Block> {
@@ -167,7 +167,7 @@ fn parse_orin(input: &[u8]) -> IResult<&[u8], Block> {
         (input, &[][..])
     };
 
-    Ok((input, Block::ORIN))
+    Ok((input, Block::InputOrientation))
 }
 
 fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
@@ -188,7 +188,7 @@ fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
         (input, &[][..])
     };
 
-    Ok((input, Block::SIUN))
+    Ok((input, Block::UnitsSI))
 }
 
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
