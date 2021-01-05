@@ -6,7 +6,7 @@ use std::fs::File;
 
 use nom::error::ErrorKind;
 use nom::bytes::streaming::{tag, take};
-use nom::number::streaming::{be_u8, be_u16, be_u32, be_i16};
+use nom::number::streaming::{be_u8, be_u16, be_u32, be_i16, be_f32};
 use nom::IResult;
 
 #[derive(Debug)]
@@ -39,7 +39,8 @@ enum Block {
     StreamName(String),
     InputOrientation(String),
     UnitsSI(String),
-    ScalingFactor(i16)
+    ScalingFactor(i16),
+    Temperature(f32),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -201,6 +202,18 @@ fn parse_scal(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::ScalingFactor(scaling_factor)))
 }
 
+fn parse_tmpc(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"f")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 4);
+    let (input, count) = be_u16(input)?;
+    assert_eq!(count, 1);
+
+    let (input, temperature_celsius) = be_f32(input)?;
+
+    Ok((input, Block::Temperature(temperature_celsius)))
+}
+
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
@@ -214,6 +227,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"ORIN" => parse_orin(input),
         b"SIUN" => parse_siun(input),
         b"SCAL" => parse_scal(input),
+        b"TMPC" => parse_tmpc(input),
         block_type => {
             println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type).unwrap());
             Err(nom::Err::Failure(nom::error::Error::new(input, ErrorKind::Tag)))
