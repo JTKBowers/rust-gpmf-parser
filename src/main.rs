@@ -74,7 +74,6 @@ fn parse_dvnm(input: &[u8]) -> IResult<&[u8], Block> {
     let string_length = (size as usize)*(count as usize);
     let (input, device_name) = take(string_length)(input)?;
     let device_name = std::str::from_utf8(device_name).unwrap();
-    println!("Got device name \"{}\"", device_name);
 
     // Take remaining padding bytes
     let (input, _padding) = if string_length % 4 != 0 {
@@ -122,7 +121,6 @@ fn parse_tsmp(input: &[u8]) -> IResult<&[u8], Block> {
     assert_eq!(count, 1);
 
     let (input, total_samples) = be_u32(input)?;
-    println!("Total samples: {}", total_samples);
 
     Ok((input, Block::TotalSamples))
 }
@@ -136,7 +134,6 @@ fn parse_stnm(input: &[u8]) -> IResult<&[u8], Block> {
     let string_length = (size as usize)*(count as usize);
     let (input, stream_name) = take(string_length)(input)?;
     let stream_name = std::str::from_utf8(stream_name).unwrap();
-    println!("Got stream name \"{}\"", stream_name);
 
     // Take remaining padding bytes
     let (input, _padding) = if string_length % 4 != 0 {
@@ -157,7 +154,6 @@ fn parse_orin(input: &[u8]) -> IResult<&[u8], Block> {
     let string_length = (size as usize)*(count as usize);
     let (input, orin) = take(string_length)(input)?;
     let orin = std::str::from_utf8(orin).unwrap();
-    println!("Got ORIN \"{}\"", orin);
 
     // Take remaining padding bytes
     let (input, _padding) = if string_length % 4 != 0 {
@@ -178,7 +174,6 @@ fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
     let string_length = ((size - 1) as usize)*(count as usize); // SI units seem to have an out-of-range byte at the end. Maybe means ^-2?
     let (input, si_units) = take(string_length)(input)?;
     let si_units = std::str::from_utf8(si_units).unwrap();
-    println!("Got SI units \"{}\"", si_units);
 
     // Take remaining padding bytes
     let (input, _padding) = if string_length % 4 != 0 {
