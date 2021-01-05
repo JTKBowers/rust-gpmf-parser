@@ -28,29 +28,44 @@ impl From<std::io::Error> for ParseError {
     }
 }
 
-
-fn parse_devc(input: &[u8]) -> IResult<&[u8], ()> {
-    let (input, _data_type) = tag(&[0])(input)?;
-    let (input, _) = take(3usize)(input)?;
-
-    // TODO: Actually parse the device ID?
-    Ok((input, ()))
+enum Block {
+    DEVC([u8; 3]),
+    DVID([u8; 4]),
+    DVNM(String),
+    STRM,
+    STMP,
+    TSMP,
+    STNM(String),
+    ORIN,
+    SIUN
 }
 
-fn parse_dvid(input: &[u8]) -> IResult<&[u8], ()> {
+fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(&[0])(input)?;
+    let (input, device_source) = take(3usize)(input)?;
+
+    let mut device_source_array = [0u8; 3];
+    device_source_array.copy_from_slice(device_source);
+
+    Ok((input, Block::DEVC(device_source_array)))
+}
+
+fn parse_dvid(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"L")(input)?;
     let (input, size) = be_u8(input)?;
     assert_eq!(size, 4);
     let (input, count) = be_u16(input)?;
     assert_eq!(count, 1);
 
-    let (input, id) = take((size as usize)*(count as usize))(input)?;
+    let (input, device_id) = take((size as usize)*(count as usize))(input)?;
 
-    // TODO: return ID
-    Ok((input, ()))
+    let mut device_id_array = [0u8; 4];
+    device_id_array.copy_from_slice(device_id);
+
+    Ok((input, Block::DVID(device_id_array)))
 }
 
-fn parse_dvnm(input: &[u8]) -> IResult<&[u8], ()> {
+fn parse_dvnm(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
     let (input, size) = be_u8(input)?;
     let (input, count) = be_u16(input)?;
@@ -68,18 +83,17 @@ fn parse_dvnm(input: &[u8]) -> IResult<&[u8], ()> {
         (input, &[][..])
     };
 
-    // TODO: return device name
-    Ok((input, ()))
+    Ok((input, Block::DVNM(device_name.to_string())))
 }
 
-fn parse_strm(input: &[u8]) -> IResult<&[u8], ()> {
+fn parse_strm(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(&[0])(input)?;
     let (input, _) = take(3usize)(input)?; // Stream ID?
 
-    Ok((input, ()))
+    Ok((input, Block::STRM))
 }
 
-fn parse_stmp(input: &[u8]) -> IResult<&[u8], ()> {
+fn parse_stmp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"J")(input)?;
     let (input, size) = be_u8(input)?;
     let (input, count) = be_u16(input)?;
@@ -95,11 +109,11 @@ fn parse_stmp(input: &[u8]) -> IResult<&[u8], ()> {
         (input, &[][..])
     };
 
-    Ok((input, ()))
+    Ok((input, Block::STMP))
 }
 
 
-fn parse_tsmp(input: &[u8]) -> IResult<&[u8], ()> {
+fn parse_tsmp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"L")(input)?;
     let (input, size) = be_u8(input)?;
     assert_eq!(size, 4);
@@ -109,12 +123,11 @@ fn parse_tsmp(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, total_samples) = be_u32(input)?;
     println!("Total samples: {}", total_samples);
 
-    // TODO: return ID
-    Ok((input, ()))
+    Ok((input, Block::TSMP))
 }
 
 
-fn parse_stnm(input: &[u8]) -> IResult<&[u8], ()> {
+fn parse_stnm(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
     let (input, size) = be_u8(input)?;
     let (input, count) = be_u16(input)?;
@@ -132,11 +145,10 @@ fn parse_stnm(input: &[u8]) -> IResult<&[u8], ()> {
         (input, &[][..])
     };
 
-    // TODO: return stream name
-    Ok((input, ()))
+    Ok((input, Block::STNM(stream_name.to_string())))
 }
 
-fn parse_orin(input: &[u8]) -> IResult<&[u8], ()> {
+fn parse_orin(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
     let (input, size) = be_u8(input)?;
     let (input, count) = be_u16(input)?;
@@ -154,11 +166,10 @@ fn parse_orin(input: &[u8]) -> IResult<&[u8], ()> {
         (input, &[][..])
     };
 
-    // TODO: return stream name
-    Ok((input, ()))
+    Ok((input, Block::ORIN))
 }
 
-fn parse_siun(input: &[u8]) -> IResult<&[u8], ()> {
+fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
     let (input, size) = be_u8(input)?;
     let (input, count) = be_u16(input)?;
@@ -176,11 +187,10 @@ fn parse_siun(input: &[u8]) -> IResult<&[u8], ()> {
         (input, &[][..])
     };
 
-    // TODO: return stream name
-    Ok((input, ()))
+    Ok((input, Block::SIUN))
 }
 
-fn parse_block(input: &[u8]) -> IResult<&[u8], ()> {
+fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
         b"DEVC" => parse_devc(input),
@@ -193,7 +203,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], ()> {
         b"ORIN" => parse_orin(input),
         b"SIUN" => parse_siun(input),
         block_type => {
-            println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type));
+            println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type).unwrap());
             Err(nom::Err::Failure(nom::error::Error::new(input, ErrorKind::Tag)))
         }
     }?;
