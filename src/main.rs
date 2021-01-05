@@ -48,6 +48,8 @@ enum Block {
     WhiteBalanceRGBGains(Vec<[f32; 3]>),
     ISO(Vec<u16>),
     ImageUniformity(Vec<f32>),
+    Type(String),
+    Custom(Vec<u8>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -410,6 +412,43 @@ fn parse_unif(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::ImageUniformity(measurements)))
 }
 
+fn parse_type(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"c")(input)?;
+    let (input, size) = be_u8(input)?;
+    let (input, count) = be_u16(input)?;
+
+    let string_length = (size as usize)*(count as usize);
+    let (input, stream_name) = take(string_length)(input)?;
+    let stream_name = std::str::from_utf8(stream_name).unwrap();
+
+    // Take remaining padding bytes
+    let (input, _padding) = if string_length % 4 != 0 {
+        let count_remaining_bytes = 4 - string_length % 4;
+        take(count_remaining_bytes)(input)?
+    } else {
+        (input, &[][..])
+    };
+
+    Ok((input, Block::Type(stream_name.to_string())))
+}
+
+fn parse_custom(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"?")(input)?;
+    let (input, size) = be_u8(input)?;
+    let (input, count) = be_u16(input)?;
+
+    let data_length = (size as usize)*(count as usize);
+    let (input, data_bytes) = take(data_length)(input)?;
+    let input = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?.0
+    } else {
+        input
+    };
+
+    Ok((input, Block::Custom(data_bytes.to_vec())))
+}
+
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
@@ -431,9 +470,15 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"WRGB" => parse_wrgb(input),
         b"ISOE" => parse_isoe(input),
         b"UNIF" => parse_unif(input),
+        b"TYPE" => parse_type(input),
         block_type => {
-            println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type).unwrap());
-            Err(nom::Err::Failure(nom::error::Error::new(input, ErrorKind::Tag)))
+            let r = parse_custom(input);
+            if r.is_err() {
+                println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type).unwrap());
+                Err(nom::Err::Failure(nom::error::Error::new(input, ErrorKind::Tag)))
+            } else {
+                r
+            }
         }
     }?;
 
