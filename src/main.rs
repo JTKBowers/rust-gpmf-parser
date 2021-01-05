@@ -512,6 +512,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"STNM" => parse_stnm(input),
         b"ORIN" => parse_orin(input),
         b"SIUN" => parse_siun(input),
+        b"UNIT" => parse_siun(input),
         b"SCAL" => parse_scal(input),
         b"TMPC" => parse_tmpc(input),
         b"ACCL" => parse_accl(input),
