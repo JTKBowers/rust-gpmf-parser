@@ -6,7 +6,7 @@ use std::fs::File;
 
 use nom::error::ErrorKind;
 use nom::bytes::streaming::{tag, take};
-use nom::number::streaming::{be_u8, be_u16, be_u32};
+use nom::number::streaming::{be_u8, be_u16, be_u32, be_i16};
 use nom::IResult;
 
 #[derive(Debug)]
@@ -38,7 +38,8 @@ enum Block {
     TotalSamples(u32),
     StreamName(String),
     InputOrientation(String),
-    UnitsSI(String)
+    UnitsSI(String),
+    ScalingFactor(i16)
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -186,6 +187,20 @@ fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::UnitsSI(si_units.to_string())))
 }
 
+fn parse_scal(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"s")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 2);
+    let (input, count) = be_u16(input)?;
+    assert_eq!(count, 1);
+
+    let (input, scaling_factor) = be_i16(input)?;
+
+    let (input, _) = take(2usize)(input)?;
+
+    Ok((input, Block::ScalingFactor(scaling_factor)))
+}
+
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
@@ -198,6 +213,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"STNM" => parse_stnm(input),
         b"ORIN" => parse_orin(input),
         b"SIUN" => parse_siun(input),
+        b"SCAL" => parse_scal(input),
         block_type => {
             println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type).unwrap());
             Err(nom::Err::Failure(nom::error::Error::new(input, ErrorKind::Tag)))
