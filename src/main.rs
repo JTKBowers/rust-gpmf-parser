@@ -33,10 +33,6 @@ fn parse_devc(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _data_type) = tag(&[0])(input)?;
     let (input, _) = take(3usize)(input)?;
 
-    // if description[0] != 0 {
-    //     panic!("Expected a zero length DEVC, got {:x?} | {:?}", description, std::str::from_utf8(description));
-    // }
-
     // TODO: Actually parse the device ID?
     Ok((input, ()))
 }
