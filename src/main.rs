@@ -41,6 +41,7 @@ enum Block {
     UnitsSI(String),
     ScalingFactor(i16),
     Temperature(f32),
+    Acceleration(Vec<[i16; 3]>)
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -214,6 +215,34 @@ fn parse_tmpc(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::Temperature(temperature_celsius)))
 }
 
+fn parse_accl(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"s")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 6); // Each measurement is a triplet
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, d1) = be_i16(input)?;
+        let (iinput, d2) = be_i16(iinput)?;
+        let (iinput, d3) = be_i16(iinput)?;
+        measurements.push([d1, d2, d3]);
+        input = iinput; // TODO: tidy up
+    }
+
+    // Take remaining padding bytes
+    let data_length = 6 * measurements.len();
+    let input = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?.0
+    } else {
+        input
+    };
+
+    Ok((input, Block::Acceleration(measurements)))
+}
+
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
@@ -228,6 +257,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"SIUN" => parse_siun(input),
         b"SCAL" => parse_scal(input),
         b"TMPC" => parse_tmpc(input),
+        b"ACCL" => parse_accl(input),
         block_type => {
             println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type).unwrap());
             Err(nom::Err::Failure(nom::error::Error::new(input, ErrorKind::Tag)))
@@ -279,7 +309,7 @@ fn parser(input: &[u8]) -> IResult<&[u8], Vec<Block>> {
 // }
 
 fn parse_metadata<T: Read>(mut f: T) -> Result<Vec<Block>, ParseError> {
-    let mut buffer = [0u8; 1024];
+    let mut buffer = [0u8; 2048];
     let bytes_read = f.read(&mut buffer)?;
     // let mut buffer = Vec::new();
     // let bytes_read = f.read_to_end(&mut buffer)?;
