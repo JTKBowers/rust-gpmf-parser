@@ -44,6 +44,8 @@ enum Block {
     Acceleration(Vec<[i16; 3]>),
     Gyroscope(Vec<[i16; 3]>),
     ShutterSpeed(Vec<f32>),
+    WhiteBalance(Vec<u16>),
+    WhiteBalanceRGBGains(Vec<[f32; 3]>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -300,6 +302,60 @@ fn parse_shut(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::ShutterSpeed(measurements)))
 }
 
+fn parse_wbal(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"S")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 2);
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, white_balance) = be_u16(input)?;
+        measurements.push(white_balance);
+        input = iinput; // TODO: tidy up
+    }
+
+    // Take remaining padding bytes
+    let data_length = 6 * measurements.len();
+    let input = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?.0
+    } else {
+        input
+    };
+
+    Ok((input, Block::WhiteBalance(measurements)))
+}
+
+fn parse_wrgb(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"f")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 12);
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, d1) = be_f32(input)?;
+        let (iinput, d2) = be_f32(iinput)?;
+        let (iinput, d3) = be_f32(iinput)?;
+        measurements.push([d1, d2, d3]);
+        input = iinput; // TODO: tidy up
+    }
+
+    // Take remaining padding bytes
+    let data_length = 12 * measurements.len();
+    let input = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?.0
+    } else {
+        input
+    };
+
+    Ok((input, Block::WhiteBalanceRGBGains(measurements)))
+}
+
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
@@ -317,6 +373,8 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"ACCL" => parse_accl(input),
         b"GYRO" => parse_gyro(input),
         b"SHUT" => parse_shut(input),
+        b"WBAL" => parse_wbal(input),
+        b"WRGB" => parse_wrgb(input),
         block_type => {
             println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type).unwrap());
             Err(nom::Err::Failure(nom::error::Error::new(input, ErrorKind::Tag)))
