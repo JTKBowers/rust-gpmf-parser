@@ -60,6 +60,7 @@ enum Block {
     ImageOrientation(Vec<[i16; 4]>),
     GravityVector(Vec<[i16; 3]>),
     WindProcessing(Vec<(u8, u8)>),
+    MicrophoneWet(Vec<(u8, u8, u8)>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -629,6 +630,34 @@ fn parse_wndm(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::WindProcessing(measurements)))
 }
 
+fn parse_mwet(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"B")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 3);
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, mic_wet) = be_u8(input)?;
+        let (iinput, all_mics) = be_u8(iinput)?;
+        let (iinput, confidence) = be_u8(iinput)?;
+        measurements.push((mic_wet, all_mics, confidence));
+        input = iinput; // TODO: tidy up
+    }
+
+    // Take remaining padding bytes
+    let data_length = size as usize*count as usize;
+    let (input, _padding) = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?
+    } else {
+        (input, &[][..])
+    };
+
+    Ok((input, Block::MicrophoneWet(measurements)))
+}
+
 
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
@@ -662,6 +691,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"IORI" => parse_iori(input),
         b"GRAV" => parse_grav(input),
         b"WNDM" => parse_wndm(input),
+        b"MWET" => parse_mwet(input),
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
