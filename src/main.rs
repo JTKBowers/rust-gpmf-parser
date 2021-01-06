@@ -846,7 +846,6 @@ fn parser(input: &[u8]) -> IResult<&[u8], Vec<Block>> {
     loop {
         let result = parse_block(input)?;
         input = result.0;
-        println!("{:?}", result.1);
         blocks.push(result.1);
 
         if input == b"" {
@@ -882,10 +881,8 @@ fn parser(input: &[u8]) -> IResult<&[u8], Vec<Block>> {
 // }
 
 fn parse_metadata<T: Read>(mut f: T) -> Result<Vec<Block>, ParseError> {
-    let mut buffer = [0u8; 8092];
-    let bytes_read = f.read(&mut buffer)?;
-    // let mut buffer = Vec::new();
-    // let bytes_read = f.read_to_end(&mut buffer)?;
+    let mut buffer = Vec::new();
+    let bytes_read = f.read_to_end(&mut buffer)?;
 
     let input = &buffer[..bytes_read];
     let (_, result) = parser(input)?;
