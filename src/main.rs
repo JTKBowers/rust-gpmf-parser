@@ -63,6 +63,9 @@ enum Block {
     MicrophoneWet(Vec<(u8, u8, u8)>),
     AGCAudioLevel(Vec<(i8, i8)>),
     MRVFrameSkip(Vec<i16>),
+    LRVO(i8),
+    LRVS(i8),
+    LRVFrameSkip(Vec<i16>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -732,6 +735,59 @@ fn parse_mskp(input: &[u8]) -> IResult<&[u8], Block> {
 }
 
 
+fn parse_lrvo(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"b")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 1);
+    let (input, count) = be_u16(input)?;
+    assert_eq!(count, 1);
+
+    let (input, value) = be_i8(input)?;
+    let (input, _) = take(3usize)(input)?;
+
+    Ok((input, Block::LRVO(value)))
+}
+
+
+fn parse_lrvs(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"b")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 1);
+    let (input, count) = be_u16(input)?;
+    assert_eq!(count, 1);
+
+    let (input, value) = be_i8(input)?;
+    let (input, _) = take(3usize)(input)?;
+
+    Ok((input, Block::LRVS(value)))
+}
+
+fn parse_lskp(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"s")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 2);
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, unknown) = be_i16(input)?;
+        measurements.push(unknown);
+        input = iinput; // TODO: tidy up
+    }
+
+    // Take remaining padding bytes
+    let data_length = size as usize*count as usize;
+    let (input, _padding) = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?
+    } else {
+        (input, &[][..])
+    };
+
+    Ok((input, Block::LRVFrameSkip(measurements)))
+}
+
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
@@ -767,6 +823,9 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"MWET" => parse_mwet(input),
         b"AALP" => parse_aalp(input),
         b"MSKP" => parse_mskp(input),
+        b"LRVO" => parse_lrvo(input),
+        b"LRVS" => parse_lrvs(input),
+        b"LSKP" => parse_lskp(input),
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
