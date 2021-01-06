@@ -38,7 +38,7 @@ enum Block {
     GPSF(u32),
     GPSTimestamp(String),
     GPSP(u16), // precision?
-    GPSA([u8; 4]),
+    GPSA(String),
     GPS5(Vec<u8>),
     CameraOrientation(Vec<[i16; 4]>),
     ImageOrientation(Vec<[i16; 4]>),
@@ -535,10 +535,9 @@ fn parse_gpsa(input: &[u8]) -> IResult<&[u8], Block> {
 
     let (input, key) = take(4usize)(input)?;
 
-    let mut key_array = [0u8; 4];
-    key_array.copy_from_slice(key);
+    let key = std::str::from_utf8(key).unwrap().to_string();
 
-    Ok((input, Block::GPSA(key_array)))
+    Ok((input, Block::GPSA(key)))
 }
 
 fn parse_gps5(input: &[u8]) -> IResult<&[u8], Block> {
