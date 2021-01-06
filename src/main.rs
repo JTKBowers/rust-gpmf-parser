@@ -59,6 +59,7 @@ enum Block {
     CameraOrientation(Vec<[i16; 4]>),
     ImageOrientation(Vec<[i16; 4]>),
     GravityVector(Vec<[i16; 3]>),
+    WindProcessing(Vec<(u8, u8)>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -610,6 +611,24 @@ fn parse_grav(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::GravityVector(measurements)))
 }
 
+fn parse_wndm(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"B")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 2);
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, enable) = be_u8(input)?;
+        let (iinput, meter_value) = be_u8(iinput)?;
+        measurements.push((enable, meter_value));
+        input = iinput; // TODO: tidy up
+    }
+
+    Ok((input, Block::WindProcessing(measurements)))
+}
+
 
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
@@ -642,6 +661,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"CORI" => parse_cori(input),
         b"IORI" => parse_iori(input),
         b"GRAV" => parse_grav(input),
+        b"WNDM" => parse_wndm(input),
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
