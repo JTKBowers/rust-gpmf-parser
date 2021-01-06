@@ -1,17 +1,16 @@
 use core::fmt::Debug;
+use std::fs::File;
 use std::io;
 use std::io::prelude::*;
-use std::fs::File;
 
-
-use nom::error::ErrorKind;
 use nom::bytes::streaming::{tag, take};
-use nom::number::streaming::{be_u8, be_u16, be_u32, be_u64, be_i8, be_i16, be_i32, be_f32};
+use nom::error::ErrorKind;
+use nom::number::streaming::{be_f32, be_i16, be_i32, be_i8, be_u16, be_u32, be_u64, be_u8};
 use nom::IResult;
 
 mod parser;
-use crate::parser::ParseError;
 use crate::parser::util::parse_size_count;
+use crate::parser::ParseError;
 
 #[derive(Debug)]
 enum Block {
@@ -72,7 +71,7 @@ fn parse_dvid(input: &[u8]) -> IResult<&[u8], Block> {
     assert_eq!(size, 4);
     assert_eq!(count, 1);
 
-    let (input, device_id) = take((size)*(count))(input)?;
+    let (input, device_id) = take(size * count)(input)?;
 
     let mut device_id_array = [0u8; 4];
     device_id_array.copy_from_slice(device_id);
@@ -84,7 +83,7 @@ fn parse_dvnm(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
     let (input, (size, count)) = parse_size_count(input)?;
 
-    let string_length = (size)*(count);
+    let string_length = size * count;
     let (input, device_name) = take(string_length)(input)?;
     let device_name = std::str::from_utf8(device_name).unwrap();
 
@@ -123,7 +122,6 @@ fn parse_stmp(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::StartTimestamp(start_timestamp)))
 }
 
-
 fn parse_tsmp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"L")(input)?;
     let (input, (size, count)) = parse_size_count(input)?;
@@ -135,12 +133,11 @@ fn parse_tsmp(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::TotalSamples(total_samples)))
 }
 
-
 fn parse_stnm(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
     let (input, (size, count)) = parse_size_count(input)?;
 
-    let string_length = (size)*(count);
+    let string_length = size * count;
     let (input, stream_name) = take(string_length)(input)?;
     let stream_name = std::str::from_utf8(stream_name).unwrap();
 
@@ -159,7 +156,7 @@ fn parse_orin(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
     let (input, (size, count)) = parse_size_count(input)?;
 
-    let string_length = (size)*(count);
+    let string_length = size * count;
     let (input, orientation) = take(string_length)(input)?;
     let orientation = std::str::from_utf8(orientation).unwrap();
 
@@ -178,13 +175,14 @@ fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
     let (input, (size, count)) = parse_size_count(input)?;
 
-    let string_length = (size)*(count);
+    let string_length = size * count;
     let (input, si_units) = take(string_length)(input)?;
 
     let mut si_units = si_units.to_vec();
-    for i in 0..si_units.len() {
-        if si_units[i] == 0xb2 { // Seems to represent ^-2
-            si_units[i] = b"2"[0];
+    for byte in &mut si_units {
+        if *byte == 0xb2 {
+            // Seems to represent ^-2
+            *byte = b"2"[0];
         }
     }
     let si_units = std::str::from_utf8(&si_units).unwrap();
@@ -226,7 +224,10 @@ fn parse_scal(input: &[u8]) -> IResult<&[u8], Block> {
 
         Ok((input, Block::ScalingFactorL(scaling_factors)))
     } else {
-        panic!("Unexpected scaling factor data type {}", std::str::from_utf8(data_type).unwrap());
+        panic!(
+            "Unexpected scaling factor data type {}",
+            std::str::from_utf8(data_type).unwrap()
+        );
     }
 }
 
@@ -426,7 +427,7 @@ fn parse_type(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
     let (input, (size, count)) = parse_size_count(input)?;
 
-    let string_length = (size)*(count);
+    let string_length = size * count;
     let (input, stream_name) = take(string_length)(input)?;
     let stream_name = std::str::from_utf8(stream_name).unwrap();
 
@@ -441,13 +442,13 @@ fn parse_type(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::Type(stream_name.to_string())))
 }
 
-fn parse_custom<'a>(type_name: &'a[u8], input: &'a[u8]) -> IResult<&'a[u8], Block> {
+fn parse_custom<'a>(type_name: &'a [u8], input: &'a [u8]) -> IResult<&'a [u8], Block> {
     let type_name = std::str::from_utf8(type_name).unwrap();
 
     let (input, _data_type) = tag(b"?")(input)?;
     let (input, (size, count)) = parse_size_count(input)?;
 
-    let data_length = (size)*(count);
+    let data_length = size * count;
     let (input, data_bytes) = take(data_length)(input)?;
     let input = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
@@ -456,7 +457,10 @@ fn parse_custom<'a>(type_name: &'a[u8], input: &'a[u8]) -> IResult<&'a[u8], Bloc
         input
     };
 
-    Ok((input, Block::Custom(type_name.to_string(), data_bytes.to_vec())))
+    Ok((
+        input,
+        Block::Custom(type_name.to_string(), data_bytes.to_vec()),
+    ))
 }
 
 fn parse_gpsf(input: &[u8]) -> IResult<&[u8], Block> {
@@ -475,7 +479,7 @@ fn parse_gpsu(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(count, 1);
 
-    let string_length = (size)*(count);
+    let string_length = size * count;
     let (input, gps_timestamp) = take(string_length)(input)?;
     let gps_timestamp = std::str::from_utf8(gps_timestamp).unwrap();
 
@@ -497,7 +501,7 @@ fn parse_gpsp(input: &[u8]) -> IResult<&[u8], Block> {
     assert_eq!(count, 1);
 
     let (input, unknown) = be_u16(input)?;
-    let (input, _) = tag(&[0,0])(input)?;
+    let (input, _) = tag(&[0, 0])(input)?;
 
     Ok((input, Block::GPSP(unknown)))
 }
@@ -519,7 +523,7 @@ fn parse_gps5(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"l")(input)?;
     let (input, (size, count)) = parse_size_count(input)?;
 
-    let count_bytes = (size)*(count);
+    let count_bytes = size * count;
     let (input, payload) = take(count_bytes)(input)?;
 
     Ok((input, Block::GPS5(payload.to_vec())))
@@ -605,7 +609,7 @@ fn parse_wndm(input: &[u8]) -> IResult<&[u8], Block> {
     }
 
     // Take remaining padding bytes
-    let data_length = size*count;
+    let data_length = size * count;
     let (input, _padding) = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
         take(count_remaining_bytes)(input)?
@@ -632,7 +636,7 @@ fn parse_mwet(input: &[u8]) -> IResult<&[u8], Block> {
     }
 
     // Take remaining padding bytes
-    let data_length = size*count;
+    let data_length = size * count;
     let (input, _padding) = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
         take(count_remaining_bytes)(input)?
@@ -658,7 +662,7 @@ fn parse_aalp(input: &[u8]) -> IResult<&[u8], Block> {
     }
 
     // Take remaining padding bytes
-    let data_length = size*count;
+    let data_length = size * count;
     let (input, _padding) = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
         take(count_remaining_bytes)(input)?
@@ -683,7 +687,7 @@ fn parse_mskp(input: &[u8]) -> IResult<&[u8], Block> {
     }
 
     // Take remaining padding bytes
-    let data_length = size*count;
+    let data_length = size * count;
     let (input, _padding) = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
         take(count_remaining_bytes)(input)?
@@ -693,7 +697,6 @@ fn parse_mskp(input: &[u8]) -> IResult<&[u8], Block> {
 
     Ok((input, Block::MRVFrameSkip(measurements)))
 }
-
 
 fn parse_lrvo(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"b")(input)?;
@@ -706,7 +709,6 @@ fn parse_lrvo(input: &[u8]) -> IResult<&[u8], Block> {
 
     Ok((input, Block::LRVO(value)))
 }
-
 
 fn parse_lrvs(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"b")(input)?;
@@ -734,7 +736,7 @@ fn parse_lskp(input: &[u8]) -> IResult<&[u8], Block> {
     }
 
     // Take remaining padding bytes
-    let data_length = size*count;
+    let data_length = size * count;
     let (input, _padding) = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
         take(count_remaining_bytes)(input)?
@@ -786,8 +788,15 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
-                println!("Got unexpected block type {:x?} | {:?}", block_type, std::str::from_utf8(block_type).unwrap());
-                Err(nom::Err::Failure(nom::error::Error::new(input, ErrorKind::Tag)))
+                println!(
+                    "Got unexpected block type {:x?} | {:?}",
+                    block_type,
+                    std::str::from_utf8(block_type).unwrap()
+                );
+                Err(nom::Err::Failure(nom::error::Error::new(
+                    input,
+                    ErrorKind::Tag,
+                )))
             } else {
                 r
             }
@@ -806,7 +815,7 @@ fn parser(input: &[u8]) -> IResult<&[u8], Vec<Block>> {
         blocks.push(result.1);
 
         if input == b"" {
-            break
+            break;
         }
     }
     Ok((input, blocks))

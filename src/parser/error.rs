@@ -3,7 +3,7 @@ use std::fmt::Debug;
 #[derive(Debug)]
 pub enum ParseError {
     Generic,
-    ReadError
+    ReadError,
 }
 
 impl<T: Debug> From<nom::Err<T>> for ParseError {
