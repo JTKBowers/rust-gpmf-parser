@@ -55,6 +55,7 @@ enum Block {
     GPSTimestamp(String),
     GPSP(u16), // precision?
     GPSA([u8; 4]),
+    GPS5(Vec<u8>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -536,6 +537,18 @@ fn parse_gpsa(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::GPSA(key_array)))
 }
 
+fn parse_gps5(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"l")(input)?;
+    let (input, size) = be_u8(input)?;
+    let (input, count) = be_u16(input)?;
+
+    let count_bytes = (size as usize)*(count as usize);
+    let (input, payload) = take(count_bytes)(input)?;
+
+    Ok((input, Block::GPS5(payload.to_vec())))
+}
+
+
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
@@ -563,6 +576,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"GPSU" => parse_gpsu(input),
         b"GPSP" => parse_gpsp(input),
         b"GPSA" => parse_gpsa(input),
+        b"GPS5" => parse_gps5(input),
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
@@ -619,7 +633,7 @@ fn parser(input: &[u8]) -> IResult<&[u8], Vec<Block>> {
 // }
 
 fn parse_metadata<T: Read>(mut f: T) -> Result<Vec<Block>, ParseError> {
-    let mut buffer = [0u8; 4096];
+    let mut buffer = [0u8; 4096+2048];
     let bytes_read = f.read(&mut buffer)?;
     // let mut buffer = Vec::new();
     // let bytes_read = f.read_to_end(&mut buffer)?;
