@@ -54,6 +54,7 @@ enum Block {
     GPSF(u32),
     GPSTimestamp(String),
     GPSP(u16), // precision?
+    GPSA([u8; 4]),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -520,6 +521,21 @@ fn parse_gpsp(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::GPSP(unknown)))
 }
 
+fn parse_gpsa(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"F")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 4);
+    let (input, count) = be_u16(input)?;
+    assert_eq!(count, 1);
+
+    let (input, key) = take(4usize)(input)?;
+
+    let mut key_array = [0u8; 4];
+    key_array.copy_from_slice(key);
+
+    Ok((input, Block::GPSA(key_array)))
+}
+
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
     let (input, block) = match block_type {
@@ -546,6 +562,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"GPSF" => parse_gpsf(input),
         b"GPSU" => parse_gpsu(input),
         b"GPSP" => parse_gpsp(input),
+        b"GPSA" => parse_gpsa(input),
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
