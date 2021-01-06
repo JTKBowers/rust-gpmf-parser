@@ -6,7 +6,7 @@ use std::fs::File;
 
 use nom::error::ErrorKind;
 use nom::bytes::streaming::{tag, take};
-use nom::number::streaming::{be_u8, be_u16, be_u32, be_u64, be_i16, be_f32};
+use nom::number::streaming::{be_u8, be_u16, be_u32, be_u64, be_i16, be_i32, be_f32};
 use nom::IResult;
 
 #[derive(Debug)]
@@ -39,7 +39,8 @@ enum Block {
     StreamName(String),
     InputOrientation(String),
     UnitsSI(String),
-    ScalingFactor(i16),
+    ScalingFactorS(i16),
+    ScalingFactorL(Vec<i32>), // For GPS. Should tidy this up.
     Temperature(f32),
     Acceleration(Vec<[i16; 3]>),
     Gyroscope(Vec<[i16; 3]>),
@@ -202,17 +203,36 @@ fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
 }
 
 fn parse_scal(input: &[u8]) -> IResult<&[u8], Block> {
-    let (input, _data_type) = tag(b"s")(input)?;
-    let (input, size) = be_u8(input)?;
-    assert_eq!(size, 2);
-    let (input, count) = be_u16(input)?;
-    assert_eq!(count, 1);
+    let (input, data_type) = take(1usize)(input)?;
 
-    let (input, scaling_factor) = be_i16(input)?;
+    if data_type == b"s" {
+        let (input, size) = be_u8(input)?;
+        assert_eq!(size, 2);
+        let (input, count) = be_u16(input)?;
+        assert_eq!(count, 1);
 
-    let (input, _) = take(2usize)(input)?;
+        let (input, scaling_factor) = be_i16(input)?;
 
-    Ok((input, Block::ScalingFactor(scaling_factor)))
+        let (input, _) = take(2usize)(input)?;
+
+        Ok((input, Block::ScalingFactorS(scaling_factor)))
+    } else if data_type == b"l" {
+        let (input, size) = be_u8(input)?;
+        assert_eq!(size, 4);
+        let (input, count) = be_u16(input)?;
+
+        let mut input = input;
+        let mut scaling_factors = Vec::new();
+        for _ in 0..count {
+            let (iinput, scaling_factor) = be_i32(input)?;
+            scaling_factors.push(scaling_factor);
+            input = iinput; // TODO: tidy up
+        }
+
+        Ok((input, Block::ScalingFactorL(scaling_factors)))
+    } else {
+        panic!("Unexpected scaling factor data type {}", std::str::from_utf8(data_type).unwrap());
+    }
 }
 
 fn parse_tmpc(input: &[u8]) -> IResult<&[u8], Block> {
