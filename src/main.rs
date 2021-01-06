@@ -62,6 +62,7 @@ enum Block {
     WindProcessing(Vec<(u8, u8)>),
     MicrophoneWet(Vec<(u8, u8, u8)>),
     AGCAudioLevel(Vec<(i8, i8)>),
+    MRVFrameSkip(Vec<i16>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -704,6 +705,32 @@ fn parse_aalp(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::AGCAudioLevel(measurements)))
 }
 
+fn parse_mskp(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"s")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 2);
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, unknown) = be_i16(input)?;
+        measurements.push(unknown);
+        input = iinput; // TODO: tidy up
+    }
+
+    // Take remaining padding bytes
+    let data_length = size as usize*count as usize;
+    let (input, _padding) = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?
+    } else {
+        (input, &[][..])
+    };
+
+    Ok((input, Block::MRVFrameSkip(measurements)))
+}
+
 
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
@@ -739,6 +766,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"WNDM" => parse_wndm(input),
         b"MWET" => parse_mwet(input),
         b"AALP" => parse_aalp(input),
+        b"MSKP" => parse_mskp(input),
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
