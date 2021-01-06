@@ -610,6 +610,15 @@ fn parse_grav(input: &[u8]) -> IResult<&[u8], Block> {
         input = iinput; // TODO: tidy up
     }
 
+    // Take remaining padding bytes
+    let data_length = 6 * measurements.len();
+    let input = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?.0
+    } else {
+        input
+    };
+
     Ok((input, Block::GravityVector(measurements)))
 }
 
@@ -627,6 +636,15 @@ fn parse_wndm(input: &[u8]) -> IResult<&[u8], Block> {
         measurements.push((enable, meter_value));
         input = iinput; // TODO: tidy up
     }
+
+    // Take remaining padding bytes
+    let data_length = size as usize*count as usize;
+    let (input, _padding) = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?
+    } else {
+        (input, &[][..])
+    };
 
     Ok((input, Block::WindProcessing(measurements)))
 }
