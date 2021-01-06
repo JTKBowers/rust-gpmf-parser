@@ -9,24 +9,8 @@ use nom::bytes::streaming::{tag, take};
 use nom::number::streaming::{be_u8, be_u16, be_u32, be_u64, be_i8, be_i16, be_i32, be_f32};
 use nom::IResult;
 
-#[derive(Debug)]
-enum ParseError {
-    Generic,
-    ReadError
-}
-
-impl<T: Debug> From<nom::Err<T>> for ParseError {
-    fn from(err: nom::Err<T>) -> Self {
-        println!("{:?}", err);
-        ParseError::Generic
-    }
-}
-
-impl From<std::io::Error> for ParseError {
-    fn from(_err: std::io::Error) -> Self {
-        ParseError::ReadError
-    }
-}
+mod parser;
+use crate::parser::ParseError;
 
 #[derive(Debug)]
 enum Block {
