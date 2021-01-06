@@ -58,6 +58,7 @@ enum Block {
     GPS5(Vec<u8>),
     CameraOrientation(Vec<[i16; 4]>),
     ImageOrientation(Vec<[i16; 4]>),
+    GravityVector(Vec<[i16; 3]>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -590,6 +591,25 @@ fn parse_iori(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::ImageOrientation(measurements)))
 }
 
+fn parse_grav(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"s")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 6); // Each measurement is a triplet
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, d1) = be_i16(input)?;
+        let (iinput, d2) = be_i16(iinput)?;
+        let (iinput, d3) = be_i16(iinput)?;
+        measurements.push([d1, d2, d3]);
+        input = iinput; // TODO: tidy up
+    }
+
+    Ok((input, Block::GravityVector(measurements)))
+}
+
 
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
@@ -621,6 +641,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"GPS5" => parse_gps5(input),
         b"CORI" => parse_cori(input),
         b"IORI" => parse_iori(input),
+        b"GRAV" => parse_grav(input),
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
