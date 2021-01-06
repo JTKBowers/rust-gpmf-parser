@@ -56,6 +56,7 @@ enum Block {
     GPSP(u16), // precision?
     GPSA([u8; 4]),
     GPS5(Vec<u8>),
+    CameraOrientation(Vec<[i16; 4]>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -548,6 +549,26 @@ fn parse_gps5(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::GPS5(payload.to_vec())))
 }
 
+fn parse_cori(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"s")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 8); // Each measurement is a triplet
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, d1) = be_i16(input)?;
+        let (iinput, d2) = be_i16(iinput)?;
+        let (iinput, d3) = be_i16(iinput)?;
+        let (iinput, d4) = be_i16(iinput)?;
+        measurements.push([d1, d2, d3, d4]);
+        input = iinput; // TODO: tidy up
+    }
+
+    Ok((input, Block::CameraOrientation(measurements)))
+}
+
 
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
@@ -577,6 +598,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"GPSP" => parse_gpsp(input),
         b"GPSA" => parse_gpsa(input),
         b"GPS5" => parse_gps5(input),
+        b"CORI" => parse_cori(input),
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
