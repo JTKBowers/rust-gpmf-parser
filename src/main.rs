@@ -11,6 +11,7 @@ use nom::IResult;
 
 mod parser;
 use crate::parser::ParseError;
+use crate::parser::util::parse_size_count;
 
 #[derive(Debug)]
 enum Block {
@@ -55,10 +56,9 @@ enum Block {
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(&[0x0])(input)?;
 
-    let (input, size) = be_u8(input)?;
-    let (input, count) = be_u16(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
 
-    let (input, block_bytes) = take(size as usize * count as usize)(input)?;
+    let (input, block_bytes) = take(size * count)(input)?;
 
     let (trailing_bytes, sub_blocks) = parser(block_bytes)?;
     assert_eq!(trailing_bytes.len(), 0);
@@ -68,12 +68,11 @@ fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_dvid(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"L")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 4);
-    let (input, count) = be_u16(input)?;
     assert_eq!(count, 1);
 
-    let (input, device_id) = take((size as usize)*(count as usize))(input)?;
+    let (input, device_id) = take((size)*(count))(input)?;
 
     let mut device_id_array = [0u8; 4];
     device_id_array.copy_from_slice(device_id);
@@ -83,10 +82,9 @@ fn parse_dvid(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_dvnm(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
-    let (input, size) = be_u8(input)?;
-    let (input, count) = be_u16(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
 
-    let string_length = (size as usize)*(count as usize);
+    let string_length = (size)*(count);
     let (input, device_name) = take(string_length)(input)?;
     let device_name = std::str::from_utf8(device_name).unwrap();
 
@@ -104,10 +102,9 @@ fn parse_dvnm(input: &[u8]) -> IResult<&[u8], Block> {
 fn parse_strm(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(&[0x0])(input)?;
 
-    let (input, size) = be_u8(input)?;
-    let (input, count) = be_u16(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
 
-    let (input, block_bytes) = take(size as usize * count as usize)(input)?;
+    let (input, block_bytes) = take(size * count)(input)?;
 
     let (trailing_bytes, sub_blocks) = parser(block_bytes)?;
     assert_eq!(trailing_bytes.len(), 0);
@@ -117,9 +114,8 @@ fn parse_strm(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_stmp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"J")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 8);
-    let (input, count) = be_u16(input)?;
     assert_eq!(count, 1);
 
     let (input, start_timestamp) = be_u64(input)?;
@@ -130,9 +126,8 @@ fn parse_stmp(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_tsmp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"L")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 4);
-    let (input, count) = be_u16(input)?;
     assert_eq!(count, 1);
 
     let (input, total_samples) = be_u32(input)?;
@@ -143,10 +138,9 @@ fn parse_tsmp(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_stnm(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
-    let (input, size) = be_u8(input)?;
-    let (input, count) = be_u16(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
 
-    let string_length = (size as usize)*(count as usize);
+    let string_length = (size)*(count);
     let (input, stream_name) = take(string_length)(input)?;
     let stream_name = std::str::from_utf8(stream_name).unwrap();
 
@@ -163,10 +157,9 @@ fn parse_stnm(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_orin(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
-    let (input, size) = be_u8(input)?;
-    let (input, count) = be_u16(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
 
-    let string_length = (size as usize)*(count as usize);
+    let string_length = (size)*(count);
     let (input, orientation) = take(string_length)(input)?;
     let orientation = std::str::from_utf8(orientation).unwrap();
 
@@ -183,10 +176,9 @@ fn parse_orin(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
-    let (input, size) = be_u8(input)?;
-    let (input, count) = be_u16(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
 
-    let string_length = (size as usize)*(count as usize);
+    let string_length = (size)*(count);
     let (input, si_units) = take(string_length)(input)?;
 
     let mut si_units = si_units.to_vec();
@@ -210,11 +202,10 @@ fn parse_siun(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_scal(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, data_type) = take(1usize)(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
 
     if data_type == b"s" {
-        let (input, size) = be_u8(input)?;
         assert_eq!(size, 2);
-        let (input, count) = be_u16(input)?;
         assert_eq!(count, 1);
 
         let (input, scaling_factor) = be_i16(input)?;
@@ -223,9 +214,7 @@ fn parse_scal(input: &[u8]) -> IResult<&[u8], Block> {
 
         Ok((input, Block::ScalingFactorS(scaling_factor)))
     } else if data_type == b"l" {
-        let (input, size) = be_u8(input)?;
         assert_eq!(size, 4);
-        let (input, count) = be_u16(input)?;
 
         let mut input = input;
         let mut scaling_factors = Vec::new();
@@ -243,9 +232,8 @@ fn parse_scal(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_tmpc(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"f")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 4);
-    let (input, count) = be_u16(input)?;
     assert_eq!(count, 1);
 
     let (input, temperature_celsius) = be_f32(input)?;
@@ -255,9 +243,8 @@ fn parse_tmpc(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_accl(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"s")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 6); // Each measurement is a triplet
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -283,9 +270,8 @@ fn parse_accl(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_gyro(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"s")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 6); // Each measurement is a triplet
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -311,9 +297,8 @@ fn parse_gyro(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_shut(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"f")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 4);
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -337,9 +322,8 @@ fn parse_shut(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_wbal(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"S")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 2);
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -363,9 +347,8 @@ fn parse_wbal(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_wrgb(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"f")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 12);
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -391,9 +374,8 @@ fn parse_wrgb(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_isoe(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"S")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 2);
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -417,9 +399,8 @@ fn parse_isoe(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_unif(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"f")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 4);
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -443,10 +424,9 @@ fn parse_unif(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_type(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"c")(input)?;
-    let (input, size) = be_u8(input)?;
-    let (input, count) = be_u16(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
 
-    let string_length = (size as usize)*(count as usize);
+    let string_length = (size)*(count);
     let (input, stream_name) = take(string_length)(input)?;
     let stream_name = std::str::from_utf8(stream_name).unwrap();
 
@@ -465,10 +445,9 @@ fn parse_custom<'a>(type_name: &'a[u8], input: &'a[u8]) -> IResult<&'a[u8], Bloc
     let type_name = std::str::from_utf8(type_name).unwrap();
 
     let (input, _data_type) = tag(b"?")(input)?;
-    let (input, size) = be_u8(input)?;
-    let (input, count) = be_u16(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
 
-    let data_length = (size as usize)*(count as usize);
+    let data_length = (size)*(count);
     let (input, data_bytes) = take(data_length)(input)?;
     let input = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
@@ -482,9 +461,8 @@ fn parse_custom<'a>(type_name: &'a[u8], input: &'a[u8]) -> IResult<&'a[u8], Bloc
 
 fn parse_gpsf(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"L")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 4);
-    let (input, count) = be_u16(input)?;
     assert_eq!(count, 1);
 
     let (input, gpsf) = be_u32(input)?;
@@ -494,11 +472,10 @@ fn parse_gpsf(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_gpsu(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"U")(input)?;
-    let (input, size) = be_u8(input)?;
-    let (input, count) = be_u16(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(count, 1);
 
-    let string_length = (size as usize)*(count as usize);
+    let string_length = (size)*(count);
     let (input, gps_timestamp) = take(string_length)(input)?;
     let gps_timestamp = std::str::from_utf8(gps_timestamp).unwrap();
 
@@ -515,9 +492,8 @@ fn parse_gpsu(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_gpsp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"S")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 2);
-    let (input, count) = be_u16(input)?;
     assert_eq!(count, 1);
 
     let (input, unknown) = be_u16(input)?;
@@ -528,9 +504,8 @@ fn parse_gpsp(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_gpsa(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"F")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 4);
-    let (input, count) = be_u16(input)?;
     assert_eq!(count, 1);
 
     let (input, key) = take(4usize)(input)?;
@@ -542,10 +517,9 @@ fn parse_gpsa(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_gps5(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"l")(input)?;
-    let (input, size) = be_u8(input)?;
-    let (input, count) = be_u16(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
 
-    let count_bytes = (size as usize)*(count as usize);
+    let count_bytes = (size)*(count);
     let (input, payload) = take(count_bytes)(input)?;
 
     Ok((input, Block::GPS5(payload.to_vec())))
@@ -553,9 +527,8 @@ fn parse_gps5(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_cori(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"s")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 8); // Each measurement is a quartet
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -573,9 +546,8 @@ fn parse_cori(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_iori(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"s")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 8); // Each measurement is a quartet
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -593,9 +565,8 @@ fn parse_iori(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_grav(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"s")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 6); // Each measurement is a triplet
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -621,9 +592,8 @@ fn parse_grav(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_wndm(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"B")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 2);
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -635,7 +605,7 @@ fn parse_wndm(input: &[u8]) -> IResult<&[u8], Block> {
     }
 
     // Take remaining padding bytes
-    let data_length = size as usize*count as usize;
+    let data_length = size*count;
     let (input, _padding) = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
         take(count_remaining_bytes)(input)?
@@ -648,9 +618,8 @@ fn parse_wndm(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_mwet(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"B")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 3);
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -663,7 +632,7 @@ fn parse_mwet(input: &[u8]) -> IResult<&[u8], Block> {
     }
 
     // Take remaining padding bytes
-    let data_length = size as usize*count as usize;
+    let data_length = size*count;
     let (input, _padding) = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
         take(count_remaining_bytes)(input)?
@@ -676,9 +645,8 @@ fn parse_mwet(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_aalp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"b")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 2);
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -690,7 +658,7 @@ fn parse_aalp(input: &[u8]) -> IResult<&[u8], Block> {
     }
 
     // Take remaining padding bytes
-    let data_length = size as usize*count as usize;
+    let data_length = size*count;
     let (input, _padding) = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
         take(count_remaining_bytes)(input)?
@@ -703,9 +671,8 @@ fn parse_aalp(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_mskp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"s")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 2);
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -716,7 +683,7 @@ fn parse_mskp(input: &[u8]) -> IResult<&[u8], Block> {
     }
 
     // Take remaining padding bytes
-    let data_length = size as usize*count as usize;
+    let data_length = size*count;
     let (input, _padding) = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
         take(count_remaining_bytes)(input)?
@@ -730,9 +697,8 @@ fn parse_mskp(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_lrvo(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"b")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 1);
-    let (input, count) = be_u16(input)?;
     assert_eq!(count, 1);
 
     let (input, value) = be_i8(input)?;
@@ -744,9 +710,8 @@ fn parse_lrvo(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_lrvs(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"b")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 1);
-    let (input, count) = be_u16(input)?;
     assert_eq!(count, 1);
 
     let (input, value) = be_i8(input)?;
@@ -757,9 +722,8 @@ fn parse_lrvs(input: &[u8]) -> IResult<&[u8], Block> {
 
 fn parse_lskp(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, _data_type) = tag(b"s")(input)?;
-    let (input, size) = be_u8(input)?;
+    let (input, (size, count)) = parse_size_count(input)?;
     assert_eq!(size, 2);
-    let (input, count) = be_u16(input)?;
 
     let mut input = input;
     let mut measurements = Vec::new();
@@ -770,7 +734,7 @@ fn parse_lskp(input: &[u8]) -> IResult<&[u8], Block> {
     }
 
     // Take remaining padding bytes
-    let data_length = size as usize*count as usize;
+    let data_length = size*count;
     let (input, _padding) = if data_length % 4 != 0 {
         let count_remaining_bytes = 4 - data_length % 4;
         take(count_remaining_bytes)(input)?
