@@ -6,7 +6,7 @@ use std::fs::File;
 
 use nom::error::ErrorKind;
 use nom::bytes::streaming::{tag, take};
-use nom::number::streaming::{be_u8, be_u16, be_u32, be_u64, be_i16, be_i32, be_f32};
+use nom::number::streaming::{be_u8, be_u16, be_u32, be_u64, be_i8, be_i16, be_i32, be_f32};
 use nom::IResult;
 
 #[derive(Debug)]
@@ -61,6 +61,7 @@ enum Block {
     GravityVector(Vec<[i16; 3]>),
     WindProcessing(Vec<(u8, u8)>),
     MicrophoneWet(Vec<(u8, u8, u8)>),
+    AGCAudioLevel(Vec<(i8, i8)>),
 }
 
 fn parse_devc(input: &[u8]) -> IResult<&[u8], Block> {
@@ -658,6 +659,33 @@ fn parse_mwet(input: &[u8]) -> IResult<&[u8], Block> {
     Ok((input, Block::MicrophoneWet(measurements)))
 }
 
+fn parse_aalp(input: &[u8]) -> IResult<&[u8], Block> {
+    let (input, _data_type) = tag(b"b")(input)?;
+    let (input, size) = be_u8(input)?;
+    assert_eq!(size, 2);
+    let (input, count) = be_u16(input)?;
+
+    let mut input = input;
+    let mut measurements = Vec::new();
+    for _ in 0..count {
+        let (iinput, rms_level) = be_i8(input)?;
+        let (iinput, peak_level) = be_i8(iinput)?;
+        measurements.push((rms_level, peak_level));
+        input = iinput; // TODO: tidy up
+    }
+
+    // Take remaining padding bytes
+    let data_length = size as usize*count as usize;
+    let (input, _padding) = if data_length % 4 != 0 {
+        let count_remaining_bytes = 4 - data_length % 4;
+        take(count_remaining_bytes)(input)?
+    } else {
+        (input, &[][..])
+    };
+
+    Ok((input, Block::AGCAudioLevel(measurements)))
+}
+
 
 fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
     let (input, block_type) = take(4usize)(input)?;
@@ -692,6 +720,7 @@ fn parse_block(input: &[u8]) -> IResult<&[u8], Block> {
         b"GRAV" => parse_grav(input),
         b"WNDM" => parse_wndm(input),
         b"MWET" => parse_mwet(input),
+        b"AALP" => parse_aalp(input),
         block_type => {
             let r = parse_custom(block_type, input);
             if r.is_err() {
@@ -748,7 +777,7 @@ fn parser(input: &[u8]) -> IResult<&[u8], Vec<Block>> {
 // }
 
 fn parse_metadata<T: Read>(mut f: T) -> Result<Vec<Block>, ParseError> {
-    let mut buffer = [0u8; 4096+2048];
+    let mut buffer = [0u8; 8092];
     let bytes_read = f.read(&mut buffer)?;
     // let mut buffer = Vec::new();
     // let bytes_read = f.read_to_end(&mut buffer)?;
